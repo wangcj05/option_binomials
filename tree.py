@@ -183,6 +183,6 @@ print('The optimal sigma is: ',optimal_sigma, ' at price closest to real value: 
 G = make_tree(sigma_values[index_s,0])
 G.vs[0:]['value'] = np.around(G.vs[0:]['value'],1)
 
-plot(G, layout = 'kk', vertex_label = G.vs['value'],sbox = [1200,1200], vertex_shape = 'rectangle', vertex_size = 15)
+plot(G,'output.pdf', layout = 'kk',root=0, vertex_label = G.vs['value'],bbox = (8000,8000), vertex_shape = 'rectangle', vertex_size = 15)
 
 
