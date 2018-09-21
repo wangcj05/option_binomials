@@ -13,16 +13,9 @@ from scipy.stats import norm
 """
 INITIALIZE THE TREE
 """
-
 n_steps = 20
 n_vertices = int(n_steps*(n_steps+1)/2)
 G = Graph(n_vertices, directed=True)
-#G.add_edges([(0,1),(0,2),(1,3),(1,4),(2,4),(2,5)])
-lay = G.layout('tree')
-
-vertices = arange(0,n_vertices)
-
-#Attributes of vertices option price, underlying price, delta hedge
 
 """
 USER INPUT AND OPTION ATTRIBUTES
@@ -46,18 +39,19 @@ select_real = float(input('Enter the real present value of the option: '))
 maturity = float(input('Enter the maturity from present in whole months: '))
 strike = float(input('Enter the strike price of the option: '))
 price_u = float(input('Enter the price of the underlying asset: '))
-price_max = float(input('Enter the max/min stock price at the maturity of the option: '))
-#pay_off = #payoff at step N 
+price_max = float(input('Enter the max/min stock price at the maturity of the option: ')) 
+
 maturity = maturity/12
-d_time = (maturity/12)/n_steps
+d_time = (maturity)/n_steps
 r_free = 0.02
-r_interest = 0.1
-r_period = r_interest*(maturity/12)
+r_interest = 0.10
+
+print('delta time:',d_time,'maturity:',maturity)
 
 """
 FINANCE FUNCTIONS
 """
-
+"""
 def calculate_sigma(max_stock_price, current_stock_price, time_interval):
     up_max = max_stock_price / current_stock_price
     sigma = np.log(up_max)/np.sqrt(time_interval)
@@ -65,14 +59,11 @@ def calculate_sigma(max_stock_price, current_stock_price, time_interval):
     return abs(sigma)
 
 sigma = calculate_sigma(price_max, price_u, maturity)
-
-def next_price(sigma, d_time, last_price): #sigma is the volatility (expected price movement in precentage)
-    up = last_price*math.exp(sigma*(math.sqrt(d_time)))#sqrt(d_time) is the time-adustment factor to scale volatility
-    down = last_price*(1/upside)
-    #print(up, down)
-    #p_up = (r_interest-downside)/(upside-downside)
-    #p_down = 1-p_up
-    return up, down #p_up, p_down
+"""
+def next_price(last_price, up_potential): #sigma is the volatility (expected price movement in precentage)
+    up_price = last_price*up_potential#sqrt(d_time) is the time-adustment factor to scale volatility
+    down_price = last_price*(1/up_potential)
+    return up_price, down_price 
 
 def find_nearest(array, value):
     idx = (np.abs(array - value)).argmin()
@@ -99,13 +90,13 @@ def make_tree(sigma):
     total = 0
     upside = math.exp(sigma*math.sqrt(d_time))
     downside = math.exp(-sigma*math.sqrt(d_time))
-    #print('upside',upside,'downside',downside)
+    print('upside:',upside,'downside:',downside, 'sigma:',sigma)
     p_up = ((math.exp(r_interest*d_time))-downside)/(upside-downside)
-    p_down = 1-p_up
+    #p_down = 1-p_up
     #print('p_up',p_up,'p_down',p_down)
     
     G.vs[0]['price_u'] = price_u
-    G.vs[0]['up'], G.vs[0]['down'] = next_price(sigma, d_time, G.vs[0]['price_u'])
+    G.vs[0]['up'], G.vs[0]['down'] = next_price(G.vs[0]['price_u'], upside)
     
     for m in range(1,n_steps+1,1):
         total +=m
@@ -115,16 +106,16 @@ def make_tree(sigma):
         if m>1:
             G.add_edges([(first-m+1,first)])
             G.vs[first]['price_u'] = G.vs[first-m+1]['down']
-            G.vs[first]['up'],G.vs[first]['down'] = next_price(sigma, d_time, G.vs[first]['price_u'])
+            G.vs[first]['up'],G.vs[first]['down'] = next_price(G.vs[first]['price_u'], upside)
             
             for n in range(first+1,last):
                 G.add_edges([(n-m,n),(n-m+1,n)])
                 G.vs[n]['price_u'] = G.vs[n-m+1]['down']
-                G.vs[n]['up'],G.vs[n]['down'] = next_price(sigma, d_time, G.vs[n]['price_u'])
+                G.vs[n]['up'],G.vs[n]['down'] = next_price(G.vs[n]['price_u'], upside)
                 
             G.add_edges([(last-m,last)])
             G.vs[last]['price_u'] = G.vs[last-m]['up']
-            G.vs[last]['up'],G.vs[last]['down'] = next_price(sigma, d_time, G.vs[last]['price_u'])
+            G.vs[last]['up'],G.vs[last]['down'] = next_price(G.vs[last]['price_u'], upside)
         #print('next level')
         
     if select_type == 'call':
@@ -137,7 +128,7 @@ def make_tree(sigma):
             #print(G.vs[j]['value'])
     elif select_type == 'put':
         for j in range(n_vertices-20,n_vertices,1):
-            payoff = strike - G.vs[j]['price_u']
+            payoff = strike-G.vs[j]['price_u']
             if payoff > 0:
                 G.vs[j]['value'] = payoff
             else:
@@ -150,6 +141,8 @@ def make_tree(sigma):
     for i in range(n_steps-1,0,-1):
         #print('level: ',i)
         for k in range(count_option,count_option-i,-1):
+            #if American option, option can be exercised early and has the value for depending 
+            #on whether the payoff  upon exercising or payoff on holding the eoption is higher
             if select_geo == 'American':
                 
                 if select_type == 'call':
@@ -167,6 +160,7 @@ def make_tree(sigma):
                     else:
                         G.vs[k]['value'] = option_value(r_interest,d_time,p_up, G.vs[k+i+1]['value'], G.vs[k+i]['value'])
                 #print('vertex: ',k, G.vs[k+i+1]['value'], G.vs[k+i]['value'])
+            #if European option, option cannot be exercised before maturity date
             if select_geo == 'European':
                 G.vs[k]['value'] = option_value(r_interest,d_time,p_up, G.vs[k+i+1]['value'], G.vs[k+i]['value'])
             #print(G.vs[k]['value'])
@@ -178,19 +172,18 @@ def make_tree(sigma):
 #print('Black-Scholes formula results: ',black_scholes(price_u, maturity, 0.4))
 sigma_values = np.zeros((100,2))
 for s in range(1, 101,1):
-    
-    sigma = s*0.01
-    G = make_tree(sigma)
-    sigma_values[s-1][0] = sigma
+    sig = s*0.02
+    G = make_tree(sig)
+    sigma_values[s-1][0] = sig
     sigma_values[s-1][1] = G.vs[0]['value']
 
 index_s = find_nearest(sigma_values[:,1], select_real)
-optimal_beta = sigma_values[index_s][0]
+optimal_sigma = sigma_values[index_s][0]
 optimal_price = sigma_values[index_s][1]
-print('The optimal beta is: ',optimal_beta, ' at price closest to real value: ',optimal_price)
+print('The optimal sigma is: ',optimal_sigma, ' at price closest to real value: ',optimal_price)
 
 G = make_tree(sigma_values[index_s,0])
-G.vs[0:]['value'] = np.around(G.vs[0:]['value'])
+G.vs[0:]['value'] = np.around(G.vs[0:]['value'],1)
 
 plot(G, layout = 'kk', label = G.vs['value'],sbox = [1200,1200], vertex_shape = 'rectangle', vertex_size = 15)
 
