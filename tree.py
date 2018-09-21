@@ -90,10 +90,8 @@ def make_tree(sigma):
     total = 0
     upside = math.exp(sigma*math.sqrt(d_time))
     downside = math.exp(-sigma*math.sqrt(d_time))
-    print('upside:',upside,'downside:',downside, 'sigma:',sigma)
     p_up = ((math.exp(r_interest*d_time))-downside)/(upside-downside)
     #p_down = 1-p_up
-    #print('p_up',p_up,'p_down',p_down)
     
     G.vs[0]['price_u'] = price_u
     G.vs[0]['up'], G.vs[0]['down'] = next_price(G.vs[0]['price_u'], upside)
@@ -172,7 +170,7 @@ def make_tree(sigma):
 #print('Black-Scholes formula results: ',black_scholes(price_u, maturity, 0.4))
 sigma_values = np.zeros((100,2))
 for s in range(1, 101,1):
-    sig = s*0.02
+    sig = s*0.01
     G = make_tree(sig)
     sigma_values[s-1][0] = sig
     sigma_values[s-1][1] = G.vs[0]['value']
@@ -185,6 +183,6 @@ print('The optimal sigma is: ',optimal_sigma, ' at price closest to real value: 
 G = make_tree(sigma_values[index_s,0])
 G.vs[0:]['value'] = np.around(G.vs[0:]['value'],1)
 
-plot(G, layout = 'kk', label = G.vs['value'],sbox = [1200,1200], vertex_shape = 'rectangle', vertex_size = 15)
+plot(G, layout = 'kk', vertex_label = G.vs['value'],sbox = [1200,1200], vertex_shape = 'rectangle', vertex_size = 15)
 
 
