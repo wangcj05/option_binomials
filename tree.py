@@ -1,6 +1,8 @@
 import numpy as np
 import math
 import igraph
+from colour import Color
+from collections import defaultdict
 from igraph import *
 from scipy.stats import norm
 import matplotlib.pyplot as plt
@@ -193,7 +195,14 @@ print('The Black-Scholes formula returnes an option value of: ', black_scholes(G
 
 G = make_tree(sigma_values[index_s,0]) #sigma_values[index_s,0]
 G.vs[0:]['value'] = np.around(G.vs[0:]['value'],1)
-
+red = Color('red')
+colors = list(red.range_to('green',10000))
+color_index = np.arange(0,1,0.0001)
+for j in range(0,n_vertices,1):
+    nearest = find_nearest(color_index, G.vs[j]['prob'])
+    G.vs[j]['color'] = colors[nearest].hex
+    print(G.vs[j]['color'])
+    
 x_values = G.vs[n_vertices-n_steps:]['price_u']
 y_values = G.vs[n_vertices-n_steps:]['prob']
 
@@ -212,6 +221,6 @@ plt.legend(['Binomial','Black-Scholes'])
 plt.tight_layout()
 plt.show()
 
-plot(G,'output.pdf', layout = 'kk',root=0, vertex_label = G.vs['prob'],bbox = (2000,2000), vertex_shape = 'rectangle', vertex_size = 35)
+plot(G,'tree.pdf', layout = 'kk',root=0, vertex_label = G.vs['value'],bbox = (2000,2000), vertex_shape = 'rectangle', vertex_size = 30)
 
 
