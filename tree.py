@@ -1,21 +1,16 @@
 import numpy as np
-from numpy import arange
 import math
-
 import igraph
 from igraph import *
-
 from scipy.stats import norm
-
+import matplotlib.pyplot as plt
 #import networkx as nx
 #plotly.tools.set_credentials_file(username='menno9123', api_key='mF7CzAdgD4AD36Mn8Fiz')
- 
 """
 INITIALIZE THE TREE
 """
 n_steps = 20
 n_vertices = int(n_steps*(n_steps+1)/2)
-G = Graph(n_vertices, directed=True)
 
 """
 USER INPUT AND OPTION ATTRIBUTES
@@ -51,7 +46,7 @@ print('delta time:',d_time,'maturity:',maturity)
 """
 FINANCE FUNCTIONS
 """
-"""
+""" This function is used if sigma is calculated using 
 def calculate_sigma(max_stock_price, current_stock_price, time_interval):
     up_max = max_stock_price / current_stock_price
     sigma = np.log(up_max)/np.sqrt(time_interval)
@@ -87,13 +82,16 @@ def black_scholes(P, time_to_m, sig):
 SETTING UP TREE
 """
 def make_tree(sigma):
+    
+    G = Graph(n_vertices, directed=True)
     total = 0
     upside = math.exp(sigma*math.sqrt(d_time))
     downside = math.exp(-sigma*math.sqrt(d_time))
     p_up = ((math.exp(r_interest*d_time))-downside)/(upside-downside)
-    #p_down = 1-p_up
+    p_down = 1-p_up
     
     G.vs[0]['price_u'] = price_u
+    G.vs[0]['prob'] = 1
     G.vs[0]['up'], G.vs[0]['down'] = next_price(G.vs[0]['price_u'], upside)
     
     for m in range(1,n_steps+1,1):
@@ -104,15 +102,18 @@ def make_tree(sigma):
         if m>1:
             G.add_edges([(first-m+1,first)])
             G.vs[first]['price_u'] = G.vs[first-m+1]['down']
+            G.vs[first]['prob'] = G.vs[first-m+1]['prob']*p_down
             G.vs[first]['up'],G.vs[first]['down'] = next_price(G.vs[first]['price_u'], upside)
             
             for n in range(first+1,last):
                 G.add_edges([(n-m,n),(n-m+1,n)])
                 G.vs[n]['price_u'] = G.vs[n-m+1]['down']
+                G.vs[n]['prob'] = G.vs[n-m+1]['prob']*p_down + G.vs[n-m]['prob']*p_up
                 G.vs[n]['up'],G.vs[n]['down'] = next_price(G.vs[n]['price_u'], upside)
                 
             G.add_edges([(last-m,last)])
             G.vs[last]['price_u'] = G.vs[last-m]['up']
+            G.vs[last]['prob'] = G.vs[last-m]['prob']*p_up
             G.vs[last]['up'],G.vs[last]['down'] = next_price(G.vs[last]['price_u'], upside)
         #print('next level')
         
@@ -135,6 +136,7 @@ def make_tree(sigma):
     else:
         print('The option is neither a call or put, please enter the right type')
         
+    #calculating option values
     count_option = n_vertices-n_steps-1
     for i in range(n_steps-1,0,-1):
         #print('level: ',i)
@@ -168,21 +170,48 @@ def make_tree(sigma):
 
 
 #print('Black-Scholes formula results: ',black_scholes(price_u, maturity, 0.4))
-sigma_values = np.zeros((100,2))
+    
+"""
+Loop for iterating through values of sigma and putting them in an array. find_nearest then finds the optimal sigma for 
+which the option value at node 0 is closest to the real option values (e.g. from finance.yahoo)
+"""
+#option_values = np.zeros((100,2))
+sigma_values = np.zeros((100,3))
 for s in range(1, 101,1):
     sig = s*0.01
     G = make_tree(sig)
     sigma_values[s-1][0] = sig
     sigma_values[s-1][1] = G.vs[0]['value']
-
+    sigma_values[s-1][2] = black_scholes(price_u, maturity, sig)
+    
 index_s = find_nearest(sigma_values[:,1], select_real)
 optimal_sigma = sigma_values[index_s][0]
 optimal_price = sigma_values[index_s][1]
-print('The optimal sigma is: ',optimal_sigma, ' at price closest to real value: ',optimal_price)
 
-G = make_tree(sigma_values[index_s,0])
+print('The optimal sigma is: ',optimal_sigma, ' at price closest to real value: ',optimal_price)
+print('The Black-Scholes formula returnes an option value of: ', black_scholes(G.vs[0]['price_u'],maturity,optimal_sigma))
+
+G = make_tree(sigma_values[index_s,0]) #sigma_values[index_s,0]
 G.vs[0:]['value'] = np.around(G.vs[0:]['value'],1)
 
-plot(G,'output.pdf', layout = 'kk',root=0, vertex_label = G.vs['value'],bbox = (8000,8000), vertex_shape = 'rectangle', vertex_size = 15)
+x_values = G.vs[n_vertices-n_steps:]['price_u']
+y_values = G.vs[n_vertices-n_steps:]['prob']
+
+plt.subplot(2,1,1)
+plt.plot(x_values, y_values, 'o-')
+plt.title('Probability distribution (Binomial tree)')
+plt.ylabel('Probability')
+plt.xlabel('Underlying stock price at maturity')
+plt.subplot(2,1,2)
+plt.plot(sigma_values[1:,0],sigma_values[1:,1],'b',sigma_values[1:,0],sigma_values[1:,2],'r')
+plt.title('Black-Scholes compared to binomial calculations of ')
+plt.ylabel('Option value at node 0')
+plt.xlabel('Sigma')
+plt.legend(['Binomial','Black-Scholes'])
+
+plt.tight_layout()
+plt.show()
+
+plot(G,'output.pdf', layout = 'kk',root=0, vertex_label = G.vs['prob'],bbox = (2000,2000), vertex_shape = 'rectangle', vertex_size = 35)
 
 
